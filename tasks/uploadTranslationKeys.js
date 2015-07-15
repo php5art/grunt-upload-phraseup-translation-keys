@@ -11,6 +11,7 @@
 var request = require('request');
 var q = require('q');
 var _ = require('lodash');
+var _eval = require('eval');
 module.exports = function (grunt) {
 
   // Please see the Grunt documentation for more information regarding task
@@ -25,7 +26,8 @@ module.exports = function (grunt) {
       defaultLocale: 'en',
       syncRemove:false,
       typeParse: 'json',
-      regularExpression: "locale_en[\\s]*=[\\s]*(\\{[\\s]*(\".*\"[\\s]*:[\\s]*\".*\")*[\\s]*\\})"
+      regularExpression: "locale_en[\\s]*=[\\s]*(\\{[\\s]*(\".*\"[\\s]*:[\\s]*\".*\")*[\\s]*\\})",
+      variableName: "locale_en"
     });
     var filesJson = [];
     function logObject(src){
@@ -50,18 +52,41 @@ module.exports = function (grunt) {
             var regex = new RegExp(options.regularExpression, "i");
             var find = regex.exec(file);
             if(!find ||!find[1]){
-              grunt.fail.error("Your pattern does not match the subject string.");
+              grunt.fail.fatal("Your pattern does not match the subject string.");
               done();
             }
             return JSON.parse(find[1]);
           }
-        }else{
-          grunt.fail.error("TypeParse not support");
+        }else if(options.typeParse === 'eval'){
+          var fileJs = grunt.file.read(filepath);
+          if(fileJs){
+            var regexJs = new RegExp(options.regularExpression, "i");
+            var findJs = regexJs.exec(fileJs);
+            if(!findJs ||!findJs[1]){
+              grunt.fail.fatal("Your pattern does not match the subject string.");
+              done();
+            }
+            try{
+              return getJsonVariableFromText(findJs[1], options.variableName);
+            }catch (e){
+              grunt.fail.fatal("This string not converted to code.");
+              done();
+            }
+          }
+        }
+        else{
+          grunt.fail.fatal("TypeParse not support");
           done();
         }
       });
       filesJson = filesJson.concat(src);
     });
+
+    function getJsonVariableFromText(text, variable){
+      var evalText = text + "; exports.obj="+variable+";";
+      var evalObj = _eval(evalText);
+      return evalObj.obj;
+    }
 
     function showErrors(errors){
       for (var err in errors) {

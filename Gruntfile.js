@@ -35,13 +35,13 @@ module.exports = function (grunt) {
     uploadTranslationKeys: {
       default_options: {
         options: {
-          email: '',
-          password: '',
+          email: 'php5art+1@gmail.com',
+          password: 'qwerty123',
           syncRemove: true,
-          typeParse: 'regex',
+          typeParse: 'eval',
           regularExpression: "\\/\\*startJson\\*\\/([^]*)\\/\\*stopJson\\*\\/"
         },
-        src: ['../../../public/js/translation.js']
+        src: ['test/json/en.js']
         //files: {
         //  'tmp/default_options': ['test/fixtures/testing', 'test/fixtures/123']
         //}

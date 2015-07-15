@@ -1,4 +1,4 @@
-var locale_en = /*startJson*/{
+/*startJson*/var locale_en = {
   "lean_business_builder": "Lean business builder",
   "canvas_header":"Lean business builder",
   "canvas_subheader":"Do you want to start a company, or just play around with some ideas? Start here!",
