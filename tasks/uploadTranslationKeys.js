@@ -19,10 +19,10 @@ module.exports = function (grunt) {
 
   grunt.registerMultiTask('uploadTranslationKeys', 'Task loading keys from .json file to PhraseApp service', function () {
     var done = this.async();
-    var baseUrl = 'https://phraseapp.com/api/v1/';
+    var baseUrl = 'https://api.phraseapp.com/api/v2/';
     var options = this.options({
-      email: '',
-      password: '',
+      token: '',
+      projectName: '',
       defaultLocale: 'en',
       syncRemove:false,
       typeParse: 'json',
@@ -94,23 +94,24 @@ module.exports = function (grunt) {
       }
       done();
     }
-    function authorization() {
+    function getProjectId(token) {
       var deferred = q.defer();
-      request.post({url: baseUrl + 'sessions', form: {email: options.email, password: options.password}},
+      request.get({url: baseUrl + 'projects', forms: {}, headers: {'Authorization': 'token '+token}},
         function (err, httpResponse, body) {
-          var data = JSON.parse(body);
-          if (data["success"]) {
-            deferred.resolve(data);
+          var projects = JSON.parse(body);
+          var project = _.findWhere(projects, {name: options.projectName});
+          if (project) {
+            deferred.resolve(project.id);
           } else {
-            deferred.reject(["Not authorized!"]);
+            deferred.reject(["Project not exist!"]);
           }
         });
       return deferred.promise;
     }
 
-    function getAllRemoteKeys(token) {
+    function getAllRemoteKeys(token, projectId) {
       var deferred = q.defer();
-      request.get({url: baseUrl + 'translation_keys', form: {auth_token: token}},
+      request.get({url: baseUrl + 'projects/'+projectId+'/keys', forms: {}, headers: {'Authorization': 'token '+token}},
         function (err, httpResponse, body) {
           var keys = JSON.parse(body);
           if(!keys){
@@ -157,13 +158,30 @@ module.exports = function (grunt) {
       return deletedKeys;
     }
 
-    function uploadDefaultTranslate(token, key, content){
+    function getDefaultLocale(token, projectId){
       var deferred = q.defer();
-      request.post({url: baseUrl + 'translations/store',
+      request.get({url: baseUrl + 'projects/'+projectId+'/locales', headers: {'Authorization': 'token '+token}, forms: {}},
+      function(err, httpResponse, body){
+        if(err){
+          grunt.log.warn(err);
+        }
+        var data = JSON.parse(body);
+        var defaultLocale = _.findWhere(data, {'default': true});
+        if(defaultLocale){
+          deferred.resolve(defaultLocale.id);
+        }else{
+          grunt.log.warn("Default language not exist!");
+        }
+      });
+      return deferred.promise;
+    }
+
+    function uploadDefaultTranslate(token, projectId, key, content){
+      var deferred = q.defer();
+      request.post({url: baseUrl + 'projects/'+projectId+'/translations', headers: {'Authorization': 'token '+token},
           form: {
-            auth_token: token,
-            locale: 'en',
-            key: key,
+            locale_id: 'en',
+            key_id: key,
             content: content
           }
         },
@@ -177,13 +195,12 @@ module.exports = function (grunt) {
       return deferred.promise;
     }
 
-    function uploadKey(token, newKey) {
+    function uploadKey(token, projectId, newKey) {
       var deferred = q.defer();
-      request.post({url: baseUrl + 'translation_keys',
+      request.post({url: baseUrl + 'projects/'+projectId+'/keys', headers: {'Authorization': 'token '+token},
           form: {
-            auth_token: token,
-            "translation_key[name]": newKey.key,
-            "translation_key[description]": newKey.value
+            "name": newKey.key,
+            "description": newKey.value
           }
         },
         function (err, httpResponse, body) {
@@ -191,7 +208,7 @@ module.exports = function (grunt) {
           if(err){
             grunt.log.warn(err);
           }
-          uploadDefaultTranslate(token, newKey.key, newKey.value).then(function(){
+          uploadDefaultTranslate(token, projectId, data.id, newKey.value).then(function(){
             grunt.log.writeln(newKey.key + " key to successfully UPLOAD to the server.");
             deferred.resolve(data);
           });
@@ -199,9 +216,9 @@ module.exports = function (grunt) {
       return deferred.promise;
     }
 
-    function removeKey(token, key){
+    function removeKey(token, projectId, key){
       var deferred = q.defer();
-      request.del({url: baseUrl + 'translation_keys/' + key.id,
+      request.del({url: baseUrl + 'projects/'+projectId+'/keys', headers: {'Authorization': 'token '+token},
           form: {
             auth_token: token
           }
@@ -222,27 +239,28 @@ module.exports = function (grunt) {
       return deferred.promise;
     }
 
-    authorization().then(function (data) {
-      var token = data["auth_token"];
-      grunt.log.writeln("Token created successfully - " + token);
-      getAllRemoteKeys(token).then(function(keys){
-        var promises = [];
-        var remoteKeys = keys.map(function(e){return e.name; });
-        //check new keys
-        var localKeys = getAllLocalKeys();
-        var newKeys = getNewKeys(remoteKeys, localKeys);
-        newKeys.forEach(function(k){
-          promises.push(uploadKey(token, k));
-        });
-        if(options.syncRemove){
-          var deletedKeys = getDeletedKeys(keys, localKeys);
-          deletedKeys.forEach(function(dk){
-            promises.push(removeKey(token, dk));
+    getProjectId(options.token).then(function (projectId) {
+      grunt.log.writeln("Token created successfully - " + options.token);
+      getDefaultLocale(options.token, projectId).then(function(localeId){
+        getAllRemoteKeys(options.token, projectId).then(function(keys){
+          var promises = [];
+          var remoteKeys = keys.map(function(e){return e.name; });
+          //check new keys
+          var localKeys = getAllLocalKeys();
+          var newKeys = getNewKeys(remoteKeys, localKeys);
+          newKeys.forEach(function(k){
+            promises.push(uploadKey(options.token, projectId, k));
           });
-        }
-        q.all(promises).then(function(){
-          done();
-        });
+          if(options.syncRemove){
+            var deletedKeys = getDeletedKeys(keys, localKeys);
+            deletedKeys.forEach(function(dk){
+              promises.push(removeKey(options.token, projectId, dk));
+            });
+          }
+          q.all(promises).then(function(){
+            done();
+          });
+        }, showErrors);
       }, showErrors);
     }, showErrors);
   });

@@ -1,6 +1,6 @@
 {
   "name": "uploadtranslationkeys",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Task loading keys from .json file to PhraseApp service",
   "repository": "",
   "author": {

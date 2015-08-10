@@ -35,8 +35,8 @@ module.exports = function (grunt) {
     uploadTranslationKeys: {
       default_options: {
         options: {
-          email: 'php5art+1@gmail.com',
-          password: 'qwerty123',
+          token: 'd0d8b0386404664c73b86278b1831f39049688f24ce9cfb50a72bfbc8be715f4',
+          projectName: 'Lean Business Planner',
           syncRemove: true,
           typeParse: 'eval',
           regularExpression: "\\/\\*startJson\\*\\/([^]*)\\/\\*stopJson\\*\\/"
